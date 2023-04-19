@@ -4,7 +4,7 @@ var express = require('express');
  var cors = require('cors'); //Cross-Origin Resource Sharing (CORS)
 var bodyParser = require('body-parser');
 app.use(cors());
-
+var jwt=require('jsonwebtoken');
 //json parser
 //var jsonParser = bodyParser.json();
 app.use( bodyParser.json());
@@ -39,9 +39,70 @@ var con=mysql.createConnection({
 //http verbs  (get-get a data,post- new data, patch-update,delete-delete data)
  
 //..............adding route..................
+//middlewere
+function verifytoken(req,res,next)
+{
+  let authheader=req.headers.authorization;
+  if(authheader==undefined)
+  {
+    res.status(401).send({error:"no token provided"});
+  }
+  let token=authheader.split(" ")[1];
+  jwt.verify(token,"sceret",function(err,decoded)
+  {
+    if(err)
+    {
+      res.status(500).send({error:"authenticatin failed"});
+    }
+    else{
+      //res.send(decoded);
+      next();
+    }
+  })
+}
+
+
+
+//login route
+
+
+
+
+app.post("/login",function(req,res)
+{
+  if(req.body.username==undefined || req.body.password==undefined)
+  {
+    res.status(500).send({error:"authentication failed"});
+  }
+  let username=req.body.username;
+  let password=req.body.password;
+  let qr=` select display_name from users where username='${username}' and password=sha1('${password}') `;
+con.query(qr,function(err,result)
+{
+  if(err || result.length==0)
+  {
+    res.status(500).send({error:"ther is no such a user"});
+  }
+  else{
+   // res.status(200).send({sucess:"welcome"});
+   let resp={
+    id:result[0].id,
+    display_name:result[0].display_name
+   }
+   let token=jwt.sign(resp,"sceret",{expiresIn:60});
+   res.status(200).send({auth:true,token:token});
+  }
+  
+  
+})
+
+})
+
+
+
 
 //all book details 
-app.get("/books",function(req,res)
+app.get("/books",verifytoken,function(req,res)
 {
   con.query("select * from books",function(err,result,fields)
   {
@@ -77,19 +138,19 @@ app.get("/book/:id",function(req,res)
 //add a new book
 app.post("/book",function(req,res)
 {
-   /* let BookTitle = req.body.book_title;
-    let description = req.body.description;
-    let author_name = req.body.author_name;
-    let price = req.body.price;
-    
-    let qr = 'insert into books(book_title,description,author_name,price) values('${BookTitle}','${description}','${author_name}',${price})';*/
     let BookTitle = req.body.book_title;
     let description = req.body.description;
     let author_name = req.body.author_name;
     let price = req.body.price;
     
-    let qr = 'insert into books(book_title,description,author_name,price) values(?,?,?,?)';
-    con.query(qr, [BookTitle, description, author_name, price], function(err, result) {
+    let qr = `insert into books(book_title,description,author_name,price) values('${BookTitle}','${description}','${author_name}',${price})`;
+    /*let BookTitle = req.body.book_title;
+    let description = req.body.description;
+    let author_name = req.body.author_name;
+    let price = req.body.price;*/
+    
+  //  let qr = 'insert into books(book_title,description,author_name,price) values(?,?,?,?)';
+    con.query(qr, function(err, result) {
       if (err) {
           throw err;
       } else {
@@ -98,16 +159,17 @@ app.post("/book",function(req,res)
   });
 });
 //update book
-app.patch("/book/:id",function(req,res)
+app.patch("/book",function(req,res)
 {
-  let id = req.params.id;
+  
   let BookTitle = req.body.book_title;
   let description = req.body.description;
   let author_name = req.body.author_name;
   let price = req.body.price;
+  let id = req.body.id;
 
-  let qr = 'UPDATE books SET book_title=?, description=?, author_name=?, price=? WHERE id=?';
-  con.query(qr, [BookTitle, description, author_name, price, id], function(err, result) {
+  let qr = `update books set book_title='${BookTitle}', description='${description}', author_name='${author_name}', price=${price} where id = ${id}`;
+  con.query(qr,  function(err, result) {
       if (err) {
           throw err;
       } else {
